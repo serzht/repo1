@@ -9,6 +9,5 @@ int main(int argc, char **argv)
 	sum *= (a/100)%10;
 	printf("%d", sum);
 	return 0;
-	return 0;
 }
 
