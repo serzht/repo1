@@ -18,3 +18,4 @@ int main(int argc, char **argv)
 	printf(openParentheses==0 ? "YES" : "NO");
 	return 0;
 }
+
