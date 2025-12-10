@@ -10,7 +10,7 @@ int main(int argc, char **argv)
 	FILE *f = fopen("input.txt", "r");
 	if (f)
 	{
-		fscanf(f, "%[^\n]", s);
+		fscanf(f, "%[^\EOF]", s);
 		fclose(f);
 		f = fopen("output.txt", "w");
 		if (f)
