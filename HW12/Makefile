@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -std=c23 -Wall -pedantic
+CFLAGS = -std=c23 -Wall
 
 target = report
 objects = main.o temp_api.o
@@ -13,4 +13,4 @@ $(target) : $(objects)
 	gcc -c $(CFLAGS) $< -o $@
 
 clean:
-	del $(wildcard *.o)
+	del -rf $(wildcard *.o)

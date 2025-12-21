@@ -6,8 +6,16 @@
 *.exe
 *.o
 *.so
+
+# Documents #
+###################
 *.txt
 *.csv
+*.doc
+*.docx
+*.xls
+*.xlsx
+*.pdf
 
 # Packages #
 ############
