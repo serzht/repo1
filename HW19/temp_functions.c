@@ -1,4 +1,4 @@
-#include "temp_api.h"
+#include "temp_functions.h"
 
 #define SIZE 4096		//размер буфера чтения fread (4096 байт - размер по умолчанию собственного буфера этой ф-ции)
 
@@ -356,65 +356,37 @@ int PrintInfoToFile(info_node *info, char *f_output)
 	return number_rows;
 }
 
-void SortByDate(info_node **info, enum Direction n)	 					//Сортировка 32-х битного массива дат библиотечной ф-цией qsort.
-{																		//Затем выстраивание элементов списка info в соответствии с сортированным массивом дат arr.
-	time_t  start_t = time(NULL), end_t;
-	uint32_t *arr=NULL, number=0, i, j, progress=0;
-	info_node *p=*info, *p1=NULL;
-	sensor data;
-	if (p && (p != p->next)){
+void SortByDate(info_node **info, enum Direction n)	 					//Гибридный механизм сортировки. Сначала сортируем массив arr структур link библиотечной ф-цией qsort.
+{																		//Затем настраиваем связи между элементами прямо в отсортированном массиве структур.
+	uint32_t number=0, i;
+	link *arr=NULL;
+	info_node *p=*info;
+	if (p && (p != p->next)){											//Условие отсеивает списки с числом элементов < 2
 		do{
 			number++; p = p->next;
 		} while (p != *info);
-		arr = malloc(number*sizeof(uint32_t));
+		arr = malloc(number*sizeof(link));
 		if(arr){
 			p=*info;
 			for (i=0; i < number; i++){
-				*(arr+i) = p->data.year << 20 | p->data.month << 16 | p->data.day << 11 | p->data.hour << 6 | p->data.minute;
+				(arr + i)->num_date = p->data.year << 20 | p->data.month << 16 | p->data.day << 11 | p->data.hour << 6 | p->data.minute;
+				(arr + i)->p_info_node = p;
 				p = p->next;
 			}
 			if (n == forward)
-				qsort(arr, number, sizeof(uint32_t), (int(*) (const void *, const void *)) CompareF);
+				qsort(arr, number, sizeof(link), (int(*) (const void *, const void *)) CompareF);
 			else if (n == reverse)
-				qsort(arr, number, sizeof(uint32_t), (int(*) (const void *, const void *)) CompareR);
-			p=*info;
-			for (i=0; i < number; i++){
-				data.minute = (*(arr + i)<<26)>>26;
-				data.hour = (*(arr + i)<<21)>>27;
-				data.day = (*(arr + i)<<16)>>27;
-				data.month = (*(arr + i)<<12)>>28;
-				data.year = *(arr + i)>>20;
-				p1=p, j=i;
-				do{
-					if (CmpDate(&p1->data, &data) == 0){
-						if (i != j){									//Выполняется, если нужный нам элемент не следующий по порядку сортировки.
-							if (i == 0){								//Если первый элемент списка info (p) не совпадает с первым элементом сортированного массива arr (p1),
-								p = *info = p1;							//просто делаем p1 началом списка.
-								break;
-							} 											//Извлекаем найденный p1 из его места и ставим перед p:
-							p1->prev->next = p1->next;					//*Склеиваем предыдущий и следующий за p1 элементы
-							p1->next->prev = p1->prev;					//после его извлечения.
-							p->prev->next = p1;							//Настраиваем связи с p1 на новом месте
-							p1->prev = p->prev;							//после его установки 
-							p1->next = p;								//перед p.
-							p->prev = p1;								//*
-							p = p1;										//Устанавлливаем позицию p равной p1, чтобы в следующем цикле p был на искомой позиции в соответствии с arr
-							break;
-						}
-						else
-							break;										//Если искомый элемент на своем месте - ничего не делаем и выходим
-					}
-					p1 = p1->next; j++;
-				} while (p1 != *info);
-				p = p->next;
-				if (number > 5000){
-					if (progress <= ((float)(i+1)/number)*100)
-						printf("\rProgress: %d%%", progress++);
-					if (progress == 101) printf("\n");
-				}
+				qsort(arr, number, sizeof(link), (int(*) (const void *, const void *)) CompareR);
+			*info = arr->p_info_node;
+			arr->p_info_node->prev = (arr + number-1)->p_info_node;						//Сразу оформляем первый и последний элементы,
+			arr->p_info_node->next = (arr + 1)->p_info_node;							//связывая их между собой,
+			(arr + number-1)->p_info_node->prev = (arr + number-2)->p_info_node;		//а также всего одной связью
+			(arr + number-1)->p_info_node->next = arr->p_info_node;						//с соседями справа и слева.
+			for (i=1; i < number-1; i++)												//В цикле работаем с элементами, начиная со 2-го по предпоследний,
+			{																			//для каждого настраивая по одной связи справа и слева (next и prev)
+				(arr + i)->p_info_node->prev = (arr + i-1)->p_info_node;
+				(arr + i)->p_info_node->next = (arr + i+1)->p_info_node;
 			}
-			end_t = time(NULL);
-			printf("Sorting time - %lld minutes %lld seconds.\n", (end_t-start_t)/60, (end_t-start_t)%60);
 			free(arr);
 		}
 		else
@@ -422,82 +394,12 @@ void SortByDate(info_node **info, enum Direction n)	 					//Сортировка
 	}
 }
 
-int CompareF(uint32_t *a, uint32_t *b)
+int CompareF(link *a, link *b)
 {
-	return *a - *b;
+	return a->num_date - b->num_date;
 }
 
-int CompareR(uint32_t *a, uint32_t *b)
+int CompareR(link *a, link *b)
 {
-	return *b - *a;
+	return b->num_date - a->num_date;
 }
-
-int CmpDate(sensor *a, sensor *b)
-{
-	if (a->year - b->year)
-		return a->year - b->year;
-	else if (a->month - b->month)
-		return a->month - b->month;
-	else if (a->day - b->day)
-		return a->day - b->day;
-	else if (a->hour - b->hour)
-		return a->hour - b->hour;
-	else
-		return a->minute - b->minute;
-}
-
-/*Пузырьковая сортировка (прошлый вариант).
-void SortByDate(info_node **info, enum Direction n)
-{
-	int number=0, cmp_value;
-	info_node *p=*info, *ptmp=NULL;
-	if (p && (p != p->next)){
-		do{
-			number++; p = p->next;
-		} while (p != *info);
-		printf("number = %d\n", number);
-		if (n == forward){
-			for (int i=1; i < number; i++){
-				p = *info;
-				printf("i = %d\n", i);
-				for  (int j=0; j < number-i; j++){
-					cmp_value = CmpDate(&p->data, &p->next->data);
-					if (cmp_value > 0){
-						ptmp = p->next;
-						p->prev->next = ptmp;
-						ptmp->next->prev = p;
-						ptmp->prev = p->prev;
-						p->prev = ptmp;
-						p->next = ptmp->next;
-						ptmp->next = p;
-						if (p == *info) *info = ptmp;
-					}
-					else
-						p = p->next;
-				}
-			}
-		}
-		else if (n == reverse){
-			for (int i=1; i < number; i++){
-				p = *info;
-				printf("i = %d\n", i);
-				for  (int j=0; j < number-i; j++){
-					cmp_value = CmpDate(&p->data, &p->next->data);
-					if (cmp_value < 0){
-						ptmp = p->next;
-						p->prev->next = ptmp;
-						ptmp->next->prev = p;
-						ptmp->prev = p->prev;
-						p->prev = ptmp;
-						p->next = ptmp->next;
-						ptmp->next = p;
-						if (p == *info) *info = ptmp;
-					}
-					else
-						p = p->next;
-				}
-			}
-		}
-	}
-}
-*/
