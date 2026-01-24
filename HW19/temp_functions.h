@@ -5,7 +5,6 @@
 #include <stdint.h>
 #include <string.h>
 #include <stdlib.h>
-#include <unistd.h>
 
 typedef struct sensor
 {
